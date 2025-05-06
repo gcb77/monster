@@ -10,6 +10,64 @@ import { fetchMatches, saveMatches, generateMatch } from '@/services/matchServic
 import { Player } from '@/models/player';
 import { fetchPlayers } from '@/services/playerService'; // Import a service to fetch player details
 
+function StandingsComponent() {
+    const { data: players } = useQuery({
+        queryKey: ['players'],
+        queryFn: fetchPlayers, // Fetch all players
+    });
+
+    const { data: matches } = useQuery({
+        queryKey: ['matches'],
+        queryFn: fetchMatches, // Fetch all matches
+    });
+
+    const playerStandings = matches?.reduce((acc: { [key: string]: {matches: number, wins: number}}, match: Match) => {
+        [match.team1, match.team2].forEach((team: string[]) => {
+            team.forEach((playerId: string) => {
+                if (!acc[playerId]) {
+                    acc[playerId] = { matches: 0, wins: 0 };
+                }
+                acc[playerId].matches = (acc[playerId].matches || 0) + 1;
+            });
+        });
+        if (match.result === MatchResult.Team1Win) {
+            match.team1.forEach((playerId: string) => {
+                acc[playerId].wins = (acc[playerId].wins || 0) + 1;
+            });
+        } else if (match.result === MatchResult.Team2Win) {
+            match.team2.forEach((playerId: string) => {
+                acc[playerId].wins = (acc[playerId].wins || 0) + 1;
+            });
+        }
+        return acc;
+    }, {});
+
+    return (
+        <div className="flex flex-col items-center justify-center w-full">
+            {matches?.length} Matches
+            <div className="flex flex-col items-center justify-center w-full">
+            <div className="text-2xl font-bold mb-4">Player Standings</div>
+            <div className="flex flex-col items-center justify-center w-full">
+                {Object.entries(playerStandings || {}).sort(
+                ([, a], [, b]) => {
+                    if (a.wins !== b.wins) {
+                        return b.wins - a.wins; // Sort by wins descending
+                    }
+                    return b.matches - a.matches; // Sort by matches descending
+                }
+                ).map(([playerId, { matches, wins }]) => (
+                <div key={playerId} className="flex flex-row items-center justify-between w-full px-4 py-2 border-b">
+                    <div className="text-lg font-bold flex-1">{players?.find(p => p.id === playerId)?.name}</div>
+                    <div className="text-lg font-bold w-40 text-center">{matches} matches</div>
+                    <div className="text-lg font-bold w-30 text-center">{wins} wins</div>
+                </div>
+                ))}
+            </div>
+            </div>
+        </div>
+    )
+}
+
 function TeamComponent({ team, winner, onPressedChange }: { team: string[], winner: boolean, onPressedChange: (pressed: boolean) => void }) {
     const { data: players } = useQuery({
         queryKey: ['players'],
@@ -115,6 +173,7 @@ export default function Matches() {
                         />
                     ))}
                 </div>
+                <StandingsComponent />
                 <Button variant="outline" className="m-2 cursor-pointer bg-transparent dark:bg-transparent text-input" onClick={() => {
                     generateMatchMutation.mutate();
                 }}>
